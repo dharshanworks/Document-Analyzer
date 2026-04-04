@@ -1,44 +1,35 @@
-# AI-Powered Document Analysis & Extraction
+# Document Analyzer
 
-An intelligent document processing system that extracts, analyses, and summarises content from PDF, DOCX, and image files using AI-powered NLP techniques.
+A web app that reads PDFs, Word docs, and images, then pulls out summaries, key info, and sentiment. Built for Track 2 of a hackathon.
 
-## Tech Stack
+## What it does
 
-- **Backend:** Python 3 / Flask
-- **Frontend:** React 19
-- **Database:** SQLite (Flask-SQLAlchemy)
-- **Authentication:** JWT (Flask-JWT-Extended) + API Key
-- **OCR:** Tesseract (pytesseract) with image preprocessing
-- **NLP:** spaCy, TextBlob, custom TF-IDF + TextRank summarization
-- **Async:** Celery + Redis (optional)
+- Upload a PDF, DOCX, or image — it extracts the text automatically
+- Generates a summary using TextRank (no external API needed)
+- Pulls out names, dates, orgs, money amounts, emails, phone numbers, URLs
+- Tells you if the document tone is positive, negative, or neutral
+- Gives you a full breakdown: readability scores, writing style, topics, risk flags, and action items
 
-## Features
+## Tech I used
 
-- **Multi-format support:** PDF, DOCX, TXT, JPG, PNG (via OCR)
-- **Layout-aware text extraction:** Preserves headings, lists, tables, and structure
-- **AI-powered summarization:** TextRank (PageRank-based) extractive summarization
-- **Entity extraction:** Names, dates, organizations, monetary amounts, emails, phones, URLs
-- **Sentiment analysis:** Hybrid TextBlob + rule-based engine with negation handling
-- **Deep analysis:** Document classification, content quality scoring, risk assessment, topic modeling, thematic categorization
+- **Backend:** Flask (Python)
+- **Frontend:** React
+- **DB:** SQLite with SQLAlchemy
+- **Auth:** JWT + API key
+- **OCR:** Tesseract via pytesseract
+- **NLP:** TextBlob for sentiment, custom TextRank for summarization, regex-based entity extraction with spaCy fallback
 
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- Tesseract OCR installed on your system
+## How to run it locally
 
 ### Backend
 
 ```bash
 cd backend
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
 python run.py
 ```
 
-The API will be available at `http://localhost:5000`.
+API runs on `http://localhost:5000`.
 
 ### Frontend
 
@@ -48,113 +39,100 @@ npm install
 npm start
 ```
 
-The frontend will be available at `http://localhost:3000`.
+App opens on `http://localhost:3000`.
 
-### Environment Variables
+### Env vars
 
-Copy `.env.example` to `.env` and configure:
+Copy `.env.example` to `.env` in the backend folder:
 
 ```bash
 cp .env.example .env
 ```
 
-| Variable | Description |
+The important ones:
+
+| Variable | What it does |
 |---|---|
-| `API_KEY` | Secret key for API authentication |
-| `SECRET_KEY` | Flask secret key |
+| `API_KEY` | Key for the `/api/document-analyze` endpoint |
+| `SECRET_KEY` | Flask session secret |
 | `JWT_SECRET_KEY` | JWT signing secret |
-| `DATABASE_URL` | Database connection string |
-| `DEBUG` | Enable debug mode |
 
-## API Usage
+## API
 
-### Authentication
-
-All requests to `/api/document-analyze` require an API key in the header:
-
-```
-x-api-key: YOUR_SECRET_API_KEY
-```
-
-### Endpoint
+### Analyze a document
 
 ```
 POST /api/document-analyze
 ```
 
-### Request
-
-```bash
-curl -X POST http://localhost:5000/api/document-analyze \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: sk_track2_default_key_change_this" \
-  -d '{
-    "fileName": "sample.pdf",
-    "fileType": "pdf",
-    "fileBase64": "JVBERi0xLjQKJcfsj6IK..."
-  }'
+Headers:
+```
+Content-Type: application/json
+x-api-key: your_api_key_here
 ```
 
-### Response
-
+Body:
 ```json
 {
-  "status": "success",
-  "fileName": "sample.pdf",
-  "summary": "This document is an invoice issued by ABC Pvt Ltd to Ravi Kumar...",
-  "entities": {
-    "names": ["Ravi Kumar"],
-    "dates": ["10 March 2026"],
-    "organizations": ["ABC Pvt Ltd"],
-    "amounts": ["₹10,000"]
-  },
-  "sentiment": "Neutral"
+  "fileName": "report.pdf",
+  "fileType": "pdf",
+  "fileBase64": "<base64-encoded file content>"
 }
 ```
 
-## Approach
+Supported file types: `pdf`, `docx`, `txt`, `jpg`, `jpeg`, `png`, `gif`, `bmp`
 
-### Data Extraction Strategy
+Response:
+```json
+{
+  "status": "success",
+  "fileName": "report.pdf",
+  "summary": "Short summary of the document...",
+  "entities": {
+    "names": ["John Doe"],
+    "dates": ["15 Jan 2024"],
+    "organizations": ["Acme Corp"],
+    "amounts": ["$50,000"],
+    "locations": ["New York"]
+  },
+  "sentiment": "Positive"
+}
+```
 
-1. **Text Extraction:** Documents are parsed using format-specific extractors (PyPDF2 for PDF, python-docx for DOCX, Tesseract OCR for images). Layout structure (headings, lists, tables) is preserved through markup.
+### Upload a file directly
 
-2. **Summarization:** TextRank algorithm builds a sentence similarity graph and applies PageRank to identify the most representative sentences. This produces concise, accurate summaries without any external LLM dependency.
+```
+POST /upload
+```
 
-3. **Entity Extraction:** spaCy's NER model (en_core_web_sm) extracts PERSON, ORG, DATE, and MONEY entities. A regex fallback handles emails, phones, URLs, and monetary amounts. Results are cleaned with heading-word filtering and date normalization.
+Send the file as multipart form-data. No base64 needed.
 
-4. **Sentiment Analysis:** Hybrid approach combining TextBlob polarity with a rule-based engine (100+ word lexicons, negation handling, intensifier weighting). When the two methods disagree significantly, results are averaged for robustness.
+## How the analysis works
 
-5. **Deep Analysis:** Document type classification via weighted term matching, content quality scoring (A-F grade), risk assessment, topic modeling with co-occurrence analysis, and thematic categorization across 8 domains.
+**Text extraction** — Each format has its own parser. PDFs go through PyPDF2, DOCX through python-docx, and images through Tesseract OCR. I added some image preprocessing (grayscale, thresholding, denoising) to improve OCR accuracy.
 
-## Project Structure
+**Summarization** — I implemented TextRank from scratch. It builds a graph of sentence similarities and runs PageRank to find the most important sentences. Works well without needing any external LLM API.
+
+**Entity extraction** — spaCy handles the heavy lifting when available, but I also wrote a solid regex fallback that catches names, dates, orgs, amounts, emails, phones, and URLs. Added filters to stop things like "Executive Summary" from showing up as a person's name.
+
+**Sentiment** — TextBlob gives a baseline polarity score, but I layered a rule-based engine on top with about 100 positive/negative words, negation handling ("not good" = negative), and intensifiers ("very good" = stronger). When the two disagree, it averages them out.
+
+## Project layout
 
 ```
 backend/
 ├── app/
-│   ├── __init__.py              # Flask app factory
-│   ├── config.py                # Configuration
-│   ├── extensions.py            # Flask extensions
-│   ├── models.py                # Database models
-│   ├── middleware/
-│   │   └── auth.py              # API key authentication
-│   ├── routes/
-│   │   ├── auth.py              # Auth endpoints
-│   │   ├── documents.py         # Document analysis endpoint
-│   │   └── user.py              # User history/stats
-│   ├── services/
-│   │   ├── document_service.py  # Orchestration layer
-│   │   ├── nlp_service.py       # NLP coordinator
-│   │   ├── summarizer.py        # TextRank summarization
-│   │   ├── entity_extractor.py  # NER extraction
-│   │   ├── sentiment_analyzer.py # Sentiment analysis
-│   │   ├── topic_modeler.py     # Topic modeling
-│   │   ├── style_analyzer.py    # Writing style analysis
-│   │   ├── structure_analyzer.py # Document structure
-│   │   └── deep_analyzer.py     # Deep analysis engine
-│   └── utils/
-│       ├── document_parser.py   # File format parsers
-│       └── text_utils.py        # Text processing utilities
-├── requirements.txt
-├── .env.example
-└── run.py
+│   ├── routes/          # Flask blueprints (auth, documents, user)
+│   ├── services/        # Analysis logic (summarizer, entities, sentiment, etc.)
+│   ├── utils/           # Document parsers and text helpers
+│   ├── middleware/      # API key auth
+│   ├── models.py        # SQLAlchemy models
+│   └── config.py        # App config
+└── run.py               # Entry point
+
+frontend/
+├── src/
+│   ├── components/      # React pages
+│   └── hooks/           # Custom hooks
+└── server.js            # Express server for SPA routing
 ```

@@ -10,32 +10,11 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
+from google.cloud import vision_v1
 
-# Try Google Cloud Vision first, then fall back to Tesseract
-GOOGLE_VISION_API_KEY = os.getenv('GOOGLE_CLOUD_VISION_API_KEY', '')
-
-if GOOGLE_VISION_API_KEY:
-    try:
-        from google.cloud import vision_v1
-        vision_client = vision_v1.ImageAnnotatorClient(
-            client_options={"api_key": GOOGLE_VISION_API_KEY}
-        )
-        OCR_ENGINE = "google_vision"
-    except Exception:
-        OCR_ENGINE = None
-else:
-    OCR_ENGINE = None
-
-if not OCR_ENGINE:
-    try:
-        import pytesseract
-        _tesseract_path = '/usr/bin/tesseract'
-        if os.path.exists(_tesseract_path):
-            pytesseract.pytesseract.tesseract_cmd = _tesseract_path
-        pytesseract.get_tesseract_version()
-        OCR_ENGINE = "tesseract"
-    except Exception:
-        OCR_ENGINE = None
+# Google Cloud Vision API Key (env var or hardcoded fallback for Render)
+GOOGLE_VISION_API_KEY = os.getenv('GOOGLE_CLOUD_VISION_API_KEY', '5f4a04a6286aa163ccc73bc3e5b8af5908d73775')
+vision_client = vision_v1.ImageAnnotatorClient(client_options={"api_key": GOOGLE_VISION_API_KEY})
 
 
 class DocumentParser:
@@ -170,27 +149,12 @@ class DocumentParser:
 
     @staticmethod
     def _from_image(file_bytes: bytes) -> str:
-        if OCR_ENGINE == "google_vision":
-            return DocumentParser._google_vision_ocr(file_bytes)
-        elif OCR_ENGINE == "tesseract":
-            return DocumentParser._tesseract_ocr(file_bytes)
-        else:
-            raise RuntimeError("No OCR engine available. Set GOOGLE_CLOUD_VISION_API_KEY or install Tesseract.")
-
-    @staticmethod
-    def _google_vision_ocr(file_bytes: bytes) -> str:
         image = vision_v1.Image(content=file_bytes)
         response = vision_client.text_detection(image=image)
         texts = response.text_annotations
         if not texts:
             return ""
         return texts[0].description.strip()
-
-    @staticmethod
-    def _tesseract_ocr(file_bytes: bytes) -> str:
-        image = Image.open(io.BytesIO(file_bytes))
-        image = DocumentParser._preprocess_image(image)
-        return pytesseract.image_to_string(image).strip()
 
     @staticmethod
     def _preprocess_image(image: Image.Image) -> Image.Image:

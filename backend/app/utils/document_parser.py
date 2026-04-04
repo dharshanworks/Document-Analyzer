@@ -10,11 +10,17 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
-from google.cloud import vision_v1
 
-# Google Cloud Vision API Key (env var or hardcoded fallback for Render)
 GOOGLE_VISION_API_KEY = os.getenv('GOOGLE_CLOUD_VISION_API_KEY', '5f4a04a6286aa163ccc73bc3e5b8af5908d73775')
-vision_client = vision_v1.ImageAnnotatorClient(client_options={"api_key": GOOGLE_VISION_API_KEY})
+_vision_client = None
+
+
+def _get_vision_client():
+    global _vision_client
+    if _vision_client is None:
+        from google.cloud import vision_v1
+        _vision_client = vision_v1.ImageAnnotatorClient(client_options={"api_key": GOOGLE_VISION_API_KEY})
+    return _vision_client
 
 
 class DocumentParser:
@@ -149,8 +155,10 @@ class DocumentParser:
 
     @staticmethod
     def _from_image(file_bytes: bytes) -> str:
+        from google.cloud import vision_v1
+        client = vision_v1.ImageAnnotatorClient(client_options={"api_key": GOOGLE_VISION_API_KEY})
         image = vision_v1.Image(content=file_bytes)
-        response = vision_client.text_detection(image=image)
+        response = client.text_detection(image=image)
         texts = response.text_annotations
         if not texts:
             return ""

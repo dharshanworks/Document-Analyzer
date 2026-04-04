@@ -1,7 +1,11 @@
 import os
-import sys
+
+# Set Tesseract path for Render (Linux) before any imports
+if os.path.exists('/usr/bin/tesseract'):
+    import pytesseract
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+
 from app import create_app
-from app.extensions import db
 
 app = create_app()
 
@@ -9,6 +13,7 @@ app = create_app()
 def init_db():
     """Create all database tables."""
     with app.app_context():
+        from app.extensions import db
         db.create_all()
         print("Database tables created successfully.")
 

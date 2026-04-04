@@ -12,9 +12,6 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
 
-    with app.app_context():
-        db.create_all()
-
     from app.routes.auth import auth_bp
     from app.routes.documents import documents_bp
     from app.routes.user import user_bp
@@ -22,6 +19,10 @@ def create_app(config_class=Config):
     app.register_blueprint(auth_bp)
     app.register_blueprint(documents_bp)
     app.register_blueprint(user_bp)
+
+    # Create tables AFTER models are imported via blueprints
+    with app.app_context():
+        db.create_all()
 
     @app.route('/')
     def health_check():

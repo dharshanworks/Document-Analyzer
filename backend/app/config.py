@@ -12,5 +12,5 @@ class Config:
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_FILE_SIZE', 16 * 1024 * 1024))
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///document_analysis.db')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:////tmp/document_analysis.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False

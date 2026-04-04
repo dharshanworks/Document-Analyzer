@@ -1,6 +1,7 @@
 """Document analysis routes: /api/document-analyze, /upload."""
 
 import base64
+import os
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -50,10 +51,22 @@ def _save_analysis_to_db(user_id, result):
         return None
 
 
-@documents_bp.route('/api/document-analyze', methods=['POST'])
-@require_api_key
+@documents_bp.route('/api/document-analyze', methods=['GET', 'POST'])
 def analyze_document_endpoint():
+    if request.method == 'GET':
+        return jsonify({
+            "status": "success",
+            "message": "Document Analysis API is running. Send a POST request with fileName, fileType, and fileBase64.",
+            "endpoint": "/api/document-analyze",
+            "method": "POST",
+            "auth": "x-api-key header required",
+        }), 200
+
     try:
+        api_key = request.headers.get('x-api-key')
+        if not api_key or api_key != os.getenv('API_KEY', '7339386072_default'):
+            return jsonify({"status": "error", "message": "Invalid API key"}), 401
+
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body is required. Send JSON with fileName, fileType, and fileBase64."}), 400

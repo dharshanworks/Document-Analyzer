@@ -2,6 +2,7 @@
 
 import base64
 import io
+import os
 import re
 from typing import Dict, Tuple
 
@@ -10,6 +11,11 @@ from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
 import pytesseract
+
+# Set Tesseract path for Render (Linux)
+_tesseract_path = '/usr/bin/tesseract'
+if os.path.exists(_tesseract_path):
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
 
 
 class DocumentParser:

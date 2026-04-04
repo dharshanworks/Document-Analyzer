@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, clearAuthToken, getAuthHeaders } from '../api';
 import { useToast } from './Toast';
@@ -8,7 +8,14 @@ const ALLOWED_TYPES = ['pdf', 'docx', 'txt', 'jpg', 'jpeg', 'png'];
 
 function Analyze() {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lastAnalysisResult');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dragActive, setDragActive] = useState(false);
@@ -18,6 +25,14 @@ function Analyze() {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (analysisResult) {
+      localStorage.setItem('lastAnalysisResult', JSON.stringify(analysisResult));
+    } else {
+      localStorage.removeItem('lastAnalysisResult');
+    }
+  }, [analysisResult]);
 
   const resetUpload = () => {
     setSelectedFile(null);

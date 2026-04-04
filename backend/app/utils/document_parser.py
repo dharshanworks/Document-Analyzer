@@ -10,12 +10,16 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
-import pytesseract
 
-# Set Tesseract path for Render (Linux)
-_tesseract_path = '/usr/bin/tesseract'
-if os.path.exists(_tesseract_path):
-    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
+try:
+    import pytesseract
+    _tesseract_path = '/usr/bin/tesseract'
+    if os.path.exists(_tesseract_path):
+        pytesseract.pytesseract.tesseract_cmd = _tesseract_path
+    pytesseract.get_tesseract_version()
+    TESSERACT_AVAILABLE = True
+except Exception:
+    TESSERACT_AVAILABLE = False
 
 
 class DocumentParser:
@@ -150,10 +154,8 @@ class DocumentParser:
 
     @staticmethod
     def _from_image(file_bytes: bytes) -> str:
-        try:
-            pytesseract.get_tesseract_version()
-        except pytesseract.TesseractNotFoundError:
-            raise RuntimeError("Tesseract OCR is not installed.")
+        if not TESSERACT_AVAILABLE:
+            raise RuntimeError("Tesseract OCR is not installed. Install it to analyze images.")
         image = Image.open(io.BytesIO(file_bytes))
         image = DocumentParser._preprocess_image(image)
         ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)

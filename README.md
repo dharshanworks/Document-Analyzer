@@ -117,6 +117,17 @@ Send the file as multipart form-data. No base64 needed.
 
 **Sentiment** — TextBlob gives a baseline polarity score, but I layered a rule-based engine on top with about 100 positive/negative words, negation handling ("not good" = negative), and intensifiers ("very good" = stronger). When the two disagree, it averages them out.
 
+## AI Tools Used
+
+This project was built with the help of several AI tools:
+
+| Tool | How I used it |
+|---|---|
+| **Claude** | Research on NLP techniques, algorithm design, and architecture decisions |
+| **Qwen 3.6 Plus Free** | Writing code, debugging, and general development chat |
+| **ChatGPT** | Prompt engineering, refining project requirements, and documentation |
+| **Perplexity** | Deep research on best practices, API design patterns, and deployment strategies |
+
 ## Project layout
 
 ```

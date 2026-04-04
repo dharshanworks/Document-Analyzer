@@ -161,7 +161,9 @@ class DocumentParser:
             json=payload,
             timeout=30
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            error_detail = resp.text
+            raise RuntimeError(f"Google Vision API error ({resp.status_code}): {error_detail}")
         data = resp.json()
         responses = data.get("responses", [])
         if not responses:

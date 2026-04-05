@@ -10,10 +10,12 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
-import requests
+import pytesseract
 
-GOOGLE_VISION_API_KEY = os.getenv('GOOGLE_CLOUD_VISION_API_KEY', '5f4a04a6286aa163ccc73bc3e5b8af5908d73775')
-GOOGLE_VISION_URL = 'https://vision.googleapis.com/v1/images:annotate'
+# Set Tesseract path for Render (Linux)
+_tesseract_path = '/usr/bin/tesseract'
+if os.path.exists(_tesseract_path):
+    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
 
 
 class DocumentParser:
@@ -148,73 +150,25 @@ class DocumentParser:
 
     @staticmethod
     def _from_image(file_bytes: bytes) -> str:
-        b64_content = base64.b64encode(file_bytes).decode('utf-8')
-        payload = {
-            "requests": [{
-                "image": {"content": b64_content},
-                "features": [{"type": "TEXT_DETECTION"}]
-            }]
-        }
-        resp = requests.post(
-            GOOGLE_VISION_URL,
-            params={"key": GOOGLE_VISION_API_KEY},
-            json=payload,
-            timeout=30
-        )
-        if resp.status_code != 200:
-            error_detail = resp.text
-            raise RuntimeError(f"Google Vision API error ({resp.status_code}): {error_detail}")
-        data = resp.json()
-        responses = data.get("responses", [])
-        if not responses:
-            return ""
-        annotations = responses[0].get("textAnnotations", [])
-        if not annotations:
-            return ""
-        return annotations[0].get("description", "").strip()
+        image = Image.open(io.BytesIO(file_bytes))
+        image = DocumentParser._preprocess_image(image)
+        return pytesseract.image_to_string(image).strip()
 
     @staticmethod
     def _preprocess_image(image: Image.Image) -> Image.Image:
         if image.mode != 'L':
             image = image.convert('L')
-
         image = image.point(lambda x: 0 if x < 128 else 255, '1')
-
         image = image.filter(ImageFilter.MedianFilter(size=3))
-
         scale_factor = max(1, 2000 / max(image.size))
         if scale_factor > 1:
             new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
             image = image.resize(new_size, Image.LANCZOS)
-
         return image
-
-    @staticmethod
-    def _reconstruct_layout(ocr_data: dict) -> str:
-        lines = {}
-        for i, word in enumerate(ocr_data['text']):
-            if word.strip():
-                line_num = ocr_data['line_num'][i]
-                block_num = ocr_data['block_num'][i]
-                key = (block_num, line_num)
-                if key not in lines:
-                    lines[key] = []
-                lines[key].append(word)
-
-        result = []
-        for key in sorted(lines.keys()):
-            line_text = ' '.join(lines[key])
-            if len(line_text) < 60 and line_text.isupper():
-                result.append(f"\n## {line_text}\n")
-            else:
-                result.append(line_text)
-
-        return '\n'.join(result).strip()
 
     @staticmethod
     def get_metadata(file_bytes: bytes, file_type: str) -> Dict:
         metadata = {"file_type": file_type, "size_bytes": len(file_bytes)}
-
         if file_type == "pdf":
             try:
                 pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
@@ -223,8 +177,6 @@ class DocumentParser:
                 if meta:
                     metadata["title"] = meta.get('/Title', '')
                     metadata["author"] = meta.get('/Author', '')
-                    metadata["creator"] = meta.get('/Creator', '')
-                    metadata["producer"] = meta.get('/Producer', '')
             except Exception:
                 pass
         elif file_type == "docx":
@@ -232,11 +184,6 @@ class DocumentParser:
                 doc = Document(io.BytesIO(file_bytes))
                 metadata["paragraph_count"] = len(doc.paragraphs)
                 metadata["table_count"] = len(doc.tables)
-                props = doc.core_properties
-                metadata["title"] = props.title or ''
-                metadata["author"] = props.author or ''
-                metadata["created"] = str(props.created) if props.created else ''
-                metadata["modified"] = str(props.modified) if props.modified else ''
             except Exception:
                 pass
         elif file_type in ("image", "jpg", "jpeg", "png", "gif", "bmp"):
@@ -244,11 +191,8 @@ class DocumentParser:
                 img = Image.open(io.BytesIO(file_bytes))
                 metadata["width"] = img.width
                 metadata["height"] = img.height
-                metadata["format"] = img.format
-                metadata["mode"] = img.mode
             except Exception:
                 pass
-
         return metadata
 
     @staticmethod

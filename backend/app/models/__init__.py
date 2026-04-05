@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from app.extensions import db
+from app.core.extensions import db
 
 
 class User(db.Model):

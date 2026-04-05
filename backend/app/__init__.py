@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 
-from app.config import Config
-from app.extensions import cors, db, jwt
+from app.core.config import Config
+from app.core.extensions import cors, db, jwt
 
 
 def create_app(config_class=Config):
@@ -12,15 +12,14 @@ def create_app(config_class=Config):
     db.init_app(app)
     jwt.init_app(app)
 
-    from app.routes.auth import auth_bp
-    from app.routes.documents import documents_bp
-    from app.routes.user import user_bp
+    from app.api.v1.auth import auth_bp
+    from app.api.v1.documents import documents_bp
+    from app.api.v1.user import user_bp
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(documents_bp)
-    app.register_blueprint(user_bp)
+    app.register_blueprint(auth_bp, url_prefix='')
+    app.register_blueprint(documents_bp, url_prefix='')
+    app.register_blueprint(user_bp, url_prefix='')
 
-    # Create tables AFTER models are imported via blueprints
     with app.app_context():
         db.create_all()
 

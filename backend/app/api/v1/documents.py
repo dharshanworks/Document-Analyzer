@@ -6,9 +6,9 @@ import os
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app.middleware.auth import require_api_key
+from app.core.security import require_api_key
 from app.services.document_service import analyze_document, analyze_and_format
-from app.extensions import db
+from app.core.extensions import db
 from app.models import Analysis, User
 
 documents_bp = Blueprint('documents', __name__)

@@ -1,4 +1,4 @@
-"""Document parsing: PDF, DOCX, TXT, and image OCR extraction with layout preservation."""
+"""Document parsing: PDF, DOCX, TXT, and image OCR extraction."""
 
 import base64
 import io
@@ -10,17 +10,7 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
-import easyocr
-
-# Initialize EasyOCR reader once (downloads model on first use)
-_ocr_reader = None
-
-
-def _get_ocr_reader():
-    global _ocr_reader
-    if _ocr_reader is None:
-        _ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-    return _ocr_reader
+import requests
 
 
 class DocumentParser:
@@ -61,67 +51,33 @@ class DocumentParser:
     def _detect_pdf_structure(page_text: str) -> str:
         lines = page_text.split('\n')
         result = []
-        in_table = False
-        table_lines = []
-
         for line in lines:
             stripped = line.strip()
             if not stripped:
-                if in_table:
-                    result.append(DocumentParser._format_table(table_lines))
-                    table_lines = []
-                    in_table = False
                 result.append("")
                 continue
-
             if '|' in stripped and stripped.count('|') >= 2:
-                in_table = True
-                table_lines.append(stripped)
-                continue
-
-            if in_table:
-                result.append(DocumentParser._format_table(table_lines))
-                table_lines = []
-                in_table = False
-
-            if stripped.isupper() and len(stripped) < 80 and len(stripped.split()) <= 10:
+                result.append(f"[TABLE] {stripped} [/TABLE]")
+            elif stripped.isupper() and len(stripped) < 80 and len(stripped.split()) <= 10:
                 result.append(f"\n## {stripped}\n")
-            elif re.match(r'^\d+\.\s+[A-Z]', stripped) and len(stripped.split()) <= 8:
-                result.append(f"\n### {stripped}\n")
             elif re.match(r'^[\-\*\u2022]\s+', stripped):
                 result.append(f"  - {stripped.lstrip('-*• ').strip()}")
             else:
                 result.append(stripped)
-
-        if table_lines:
-            result.append(DocumentParser._format_table(table_lines))
-
         return '\n'.join(result)
-
-    @staticmethod
-    def _format_table(table_lines: list) -> str:
-        if not table_lines:
-            return ""
-        return "\n[TABLE]\n" + "\n".join(table_lines) + "\n[/TABLE]\n"
 
     @staticmethod
     def _from_docx(file_bytes: bytes) -> str:
         docx_file = io.BytesIO(file_bytes)
         doc = Document(docx_file)
         text = ""
-
         for paragraph in doc.paragraphs:
             if not paragraph.text.strip():
                 text += "\n"
                 continue
-
             style_name = paragraph.style.name.lower() if paragraph.style else ""
-            alignment = paragraph.alignment
-
             if 'heading 1' in style_name:
-                text += f"\n{'='*60}\n"
-                text += f"  {paragraph.text}\n"
-                text += f"{'='*60}\n\n"
+                text += f"\n{'='*60}\n  {paragraph.text}\n{'='*60}\n\n"
             elif 'heading 2' in style_name:
                 text += f"\n## {paragraph.text}\n\n"
             elif 'heading 3' in style_name:
@@ -130,23 +86,17 @@ class DocumentParser:
                 text += f"  - {paragraph.text}\n"
             elif paragraph.runs and any(run.bold for run in paragraph.runs if run.text.strip()):
                 text += f"\n**{paragraph.text}**\n\n"
-            elif alignment == WD_ALIGN_PARAGRAPH.CENTER:
-                text += f"\n[centered] {paragraph.text}\n\n"
             else:
                 text += paragraph.text + "\n"
-
         if doc.tables:
-            text += f"\n{'─'*60}\n"
-            text += "  TABLES\n"
-            text += f"{'─'*60}\n\n"
-            for table_idx, table in enumerate(doc.tables):
-                text += f"[Table {table_idx + 1}]\n"
-                for row_idx, row in enumerate(table.rows):
+            text += f"\n{'─'*60}\n  TABLES\n{'─'*60}\n\n"
+            for idx, table in enumerate(doc.tables):
+                text += f"[Table {idx + 1}]\n"
+                for row in table.rows:
                     cells = [cell.text.strip() for cell in row.cells]
                     if any(cells):
                         text += " | ".join(cells) + "\n"
                 text += "\n"
-
         return text.strip()
 
     @staticmethod
@@ -155,11 +105,26 @@ class DocumentParser:
 
     @staticmethod
     def _from_image(file_bytes: bytes) -> str:
-        image = Image.open(io.BytesIO(file_bytes))
-        image = DocumentParser._preprocess_image(image)
-        reader = _get_ocr_reader()
-        results = reader.readtext(image, detail=0)
-        return ' '.join(results).strip()
+        """Use OCR.space free API for image OCR."""
+        api_key = os.getenv('OCR_SPACE_API_KEY', 'helloworld')
+        url = 'https://api.ocr.space/parse/image'
+        payload = {
+            'apikey': api_key,
+            'language': 'eng',
+            'isOverlayRequired': 'false',
+            'scale': 'true',
+            'OCREngine': '2',
+        }
+        files = {'file': ('image.png', io.BytesIO(file_bytes), 'image/png')}
+        resp = requests.post(url, data=payload, files=files, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get('IsErroredOnProcessing'):
+            raise RuntimeError(f"OCR.space error: {data.get('ErrorMessage', 'Unknown error')}")
+        parsed_results = data.get('ParsedResults', [])
+        if not parsed_results:
+            return ""
+        return parsed_results[0].get('ParsedText', '').strip()
 
     @staticmethod
     def _preprocess_image(image: Image.Image) -> Image.Image:
@@ -180,10 +145,6 @@ class DocumentParser:
             try:
                 pdf_reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
                 metadata["page_count"] = len(pdf_reader.pages)
-                meta = pdf_reader.metadata
-                if meta:
-                    metadata["title"] = meta.get('/Title', '')
-                    metadata["author"] = meta.get('/Author', '')
             except Exception:
                 pass
         elif file_type == "docx":
@@ -201,14 +162,6 @@ class DocumentParser:
             except Exception:
                 pass
         return metadata
-
-    @staticmethod
-    def validate_base64(file_base64: str) -> bool:
-        try:
-            file_bytes = bytes(file_base64, 'utf-8') if isinstance(file_base64, str) else file_base64
-            return base64.b64encode(base64.b64decode(file_bytes)) == file_bytes
-        except Exception:
-            return False
 
 
 def extract_text(file_base64: str, file_type: str) -> Tuple[str, bool]:

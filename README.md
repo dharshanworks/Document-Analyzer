@@ -9,13 +9,13 @@ A full-stack web application that reads PDFs, Word docs, and images, then pulls 
 - Pulls out names, dates, orgs, money amounts, emails, phone numbers, URLs, and locations
 - Tells you if the document tone is positive, negative, or neutral
 - Gives you a full breakdown: readability scores, writing style, topics, risk flags, and action items
-- Persists analysis history with user authentication
+- Persists analysis history and user accounts with a PostgreSQL database
 
 ## Tech Stack
 
 ### Backend
-- **Framework:** Flask 3.1 (Python 3.11)
-- **Database:** SQLite with SQLAlchemy 3.1
+- **Framework:** Flask 3.1 (Python 3.14)
+- **Database:** PostgreSQL (via `psycopg` 3) for persistent user data
 - **Auth:** Flask-JWT-Extended 4.7 + API key middleware
 - **OCR:** OCR.space REST API (free, no billing needed)
 - **NLP:** TextBlob 0.17 for sentiment, custom TextRank for summarization, regex-based entity extraction
@@ -62,6 +62,7 @@ cp .env.example .env
 | `API_KEY` | Key for the `/api/document-analyze` endpoint |
 | `SECRET_KEY` | Flask session secret |
 | `JWT_SECRET_KEY` | JWT signing secret |
+| `DATABASE_URL` | PostgreSQL connection string (Required for production) |
 | `OCR_SPACE_API_KEY` | OCR.space API key for image text extraction |
 
 ## API

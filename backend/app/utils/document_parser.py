@@ -10,12 +10,17 @@ import PyPDF2
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from PIL import Image, ImageFilter, ImageEnhance
-import pytesseract
+import easyocr
 
-# Set Tesseract path for Render (Linux)
-_tesseract_path = '/usr/bin/tesseract'
-if os.path.exists(_tesseract_path):
-    pytesseract.pytesseract.tesseract_cmd = _tesseract_path
+# Initialize EasyOCR reader once (downloads model on first use)
+_ocr_reader = None
+
+
+def _get_ocr_reader():
+    global _ocr_reader
+    if _ocr_reader is None:
+        _ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+    return _ocr_reader
 
 
 class DocumentParser:
@@ -152,7 +157,9 @@ class DocumentParser:
     def _from_image(file_bytes: bytes) -> str:
         image = Image.open(io.BytesIO(file_bytes))
         image = DocumentParser._preprocess_image(image)
-        return pytesseract.image_to_string(image).strip()
+        reader = _get_ocr_reader()
+        results = reader.readtext(image, detail=0)
+        return ' '.join(results).strip()
 
     @staticmethod
     def _preprocess_image(image: Image.Image) -> Image.Image:

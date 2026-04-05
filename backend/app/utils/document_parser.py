@@ -115,7 +115,14 @@ class DocumentParser:
             'scale': 'true',
             'OCREngine': '2',
         }
-        files = {'file': ('image.png', io.BytesIO(file_bytes), 'image/png')}
+        # Convert to PNG to ensure compatibility
+        image = Image.open(io.BytesIO(file_bytes))
+        if image.mode in ('RGBA', 'P'):
+            image = image.convert('RGB')
+        buf = io.BytesIO()
+        image.save(buf, format='PNG')
+        buf.seek(0)
+        files = {'file': ('image.png', buf, 'image/png')}
         resp = requests.post(url, data=payload, files=files, timeout=60)
         resp.raise_for_status()
         data = resp.json()

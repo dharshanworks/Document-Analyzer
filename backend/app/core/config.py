@@ -12,5 +12,13 @@ class Config:
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_FILE_SIZE', 16 * 1024 * 1024))
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:////tmp/document_analysis.db')
+
+    # Use PostgreSQL on Render, SQLite locally
+    _db_url = os.getenv('DATABASE_URL')
+    if _db_url and _db_url.startswith('postgresql://'):
+        # Render uses postgres:// but SQLAlchemy needs postgresql://
+        SQLALCHEMY_DATABASE_URI = _db_url.replace('postgres://', 'postgresql://', 1)
+    else:
+        SQLALCHEMY_DATABASE_URI = 'sqlite:///document_analysis.db'
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False

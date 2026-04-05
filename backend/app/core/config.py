@@ -15,9 +15,9 @@ class Config:
 
     # Use PostgreSQL on Render, SQLite locally
     _db_url = os.getenv('DATABASE_URL')
-    if _db_url and _db_url.startswith('postgresql://'):
-        # Render uses postgres:// but SQLAlchemy needs postgresql://
-        SQLALCHEMY_DATABASE_URI = _db_url.replace('postgres://', 'postgresql://', 1)
+    if _db_url and _db_url.startswith(('postgresql://', 'postgres://')):
+        # Use psycopg v3 dialect for Python 3.14 compatibility
+        SQLALCHEMY_DATABASE_URI = _db_url.replace('postgres://', 'postgresql+psycopg://', 1).replace('postgresql://', 'postgresql+psycopg://', 1)
     else:
         SQLALCHEMY_DATABASE_URI = 'sqlite:///document_analysis.db'
 
